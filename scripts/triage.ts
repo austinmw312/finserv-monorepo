@@ -1,14 +1,18 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+config({ path: resolve(__dirname, "..", ".env") });
 
 // --- Config ---
 
 const DEVIN_API_KEY = requireEnv("DEVIN_API_KEY");
+const DEVIN_ORG_ID = requireEnv("DEVIN_ORG_ID");
 const GITHUB_TOKEN = requireEnv("GITHUB_TOKEN");
 const SLACK_WEBHOOK_URL = requireEnv("SLACK_WEBHOOK_URL");
 
 const GITHUB_REPO = "austinmw312/finserv-monorepo";
-const TRIAGE_PLAYBOOK_ID = "c9ee726db3ca4593949bad7839906d60";
-const DEVIN_API_BASE = "https://api.devin.ai/v3";
+const TRIAGE_PLAYBOOK_ID = "playbook-c9ee726db3ca4593949bad7839906d60";
+const DEVIN_API_BASE = `https://api.devin.ai/v3/organizations/${DEVIN_ORG_ID}`;
 
 const POLL_INTERVAL_MS = 30_000;
 const MAX_POLL_DURATION_MS = 30 * 60_000; // 30 minutes per session
@@ -102,12 +106,30 @@ async function fetchUntriagedIssues(): Promise<GitHubIssue[]> {
   );
 }
 
+async function addTriagedLabel(issueNumber: number): Promise<void> {
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/issues/${issueNumber}/labels`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({ labels: ["triaged"] }),
+    },
+  );
+
+  if (!res.ok) {
+    console.warn(`  Failed to add 'triaged' label to #${issueNumber}: ${res.status}`);
+  }
+}
+
 // --- Devin API ---
 
 async function createTriageSession(
   issue: GitHubIssue,
 ): Promise<DevinSession> {
-  const res = await fetch(`${DEVIN_API_BASE}/organizations/sessions`, {
+  const res = await fetch(`${DEVIN_API_BASE}/sessions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${DEVIN_API_KEY}`,
@@ -131,7 +153,7 @@ async function createTriageSession(
 
 async function getSession(sessionId: string): Promise<DevinSession> {
   const res = await fetch(
-    `${DEVIN_API_BASE}/organizations/sessions/${sessionId}`,
+    `${DEVIN_API_BASE}/sessions?session_ids=${sessionId}`,
     {
       headers: { Authorization: `Bearer ${DEVIN_API_KEY}` },
     },
@@ -143,11 +165,18 @@ async function getSession(sessionId: string): Promise<DevinSession> {
     );
   }
 
-  return res.json();
+  const data: { items: DevinSession[] } = await res.json();
+  if (data.items.length === 0) {
+    throw new Error(`Session ${sessionId} not found`);
+  }
+  return data.items[0]!;
 }
 
-function isTerminal(status: string): boolean {
-  return ["exit", "error", "suspended"].includes(status);
+function isTerminal(session: DevinSession): boolean {
+  if (["exit", "error", "suspended"].includes(session.status)) return true;
+  if (session.status === "running" && session.status_detail === "waiting_for_user") return true;
+  if (session.status === "running" && session.status_detail === "finished") return true;
+  return false;
 }
 
 async function pollSession(sessionId: string): Promise<DevinSession> {
@@ -156,7 +185,7 @@ async function pollSession(sessionId: string): Promise<DevinSession> {
   while (Date.now() - start < MAX_POLL_DURATION_MS) {
     const session = await getSession(sessionId);
 
-    if (isTerminal(session.status)) {
+    if (isTerminal(session)) {
       return session;
     }
 
@@ -278,15 +307,34 @@ async function postToSlack(text: string): Promise<void> {
 // --- Main ---
 
 async function main() {
-  console.log("🔍 Fetching untriaged GitHub issues...");
-  const issues = await fetchUntriagedIssues();
+  const testIssueNum = process.argv[2] ? parseInt(process.argv[2], 10) : null;
+
+  let issues: GitHubIssue[];
+
+  if (testIssueNum) {
+    console.log(`🧪 Test mode: triaging issue #${testIssueNum} only`);
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/issues/${testIssueNum}`,
+      {
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      },
+    );
+    if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+    issues = [await res.json()];
+  } else {
+    console.log("🔍 Fetching untriaged GitHub issues...");
+    issues = await fetchUntriagedIssues();
+  }
 
   if (issues.length === 0) {
     console.log("No untriaged issues found. Nothing to do.");
     return;
   }
 
-  console.log(`Found ${issues.length} untriaged issues`);
+  console.log(`Found ${issues.length} issue(s) to triage`);
 
   console.log("\n🚀 Creating Devin triage sessions...");
   const results = await triageInBatches(issues);
@@ -295,12 +343,9 @@ async function main() {
   const failures: { issue: GitHubIssue; reason: string }[] = [];
 
   for (const [issueNum, { session, issue }] of Array.from(results.entries())) {
-    if (
-      session.status === "exit" &&
-      session.status_detail === "finished" &&
-      session.structured_output
-    ) {
+    if (session.structured_output) {
       triageResults.push(session.structured_output);
+      await addTriagedLabel(issue.number);
     } else {
       failures.push({
         issue,
