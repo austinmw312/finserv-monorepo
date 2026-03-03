@@ -7,6 +7,19 @@ const logger = new Logger("account-service:accounts");
 
 export const accountsRouter = Router();
 
+function formatAccountDetail(account: Account) {
+  return {
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    balance: account.balance,
+    currency: account.currency,
+    status: account.status,
+    kycStatus: account.kycStatus,
+    createdAt: account.createdAt,
+  };
+}
+
 accountsRouter.get("/", (req: Request, res: Response) => {
   const accounts = accountStore.getAll();
   const summary = accounts.map((a) => ({
@@ -42,18 +55,7 @@ accountsRouter.post("/bulk-lookup", (req: Request, res: Response) => {
   }
 
   const accounts = accountStore.getByIds(ids);
-  const data = accounts.map((account) => ({
-    id: account.id,
-    name: account.name,
-    email: account.email,
-    balance: account.balance,
-    currency: account.currency,
-    status: account.status,
-    kycStatus: account.kycStatus,
-    createdAt: account.createdAt,
-  }));
-
-  res.json({ data });
+  res.json({ data: accounts.map(formatAccountDetail) });
 });
 
 accountsRouter.get("/:id", (req: Request, res: Response) => {
@@ -63,18 +65,7 @@ accountsRouter.get("/:id", (req: Request, res: Response) => {
     return;
   }
 
-  res.json({
-    data: {
-      id: account.id,
-      name: account.name,
-      email: account.email,
-      balance: account.balance,
-      currency: account.currency,
-      status: account.status,
-      kycStatus: account.kycStatus,
-      createdAt: account.createdAt,
-    },
-  });
+  res.json({ data: formatAccountDetail(account) });
 });
 
 accountsRouter.post("/", (req: Request, res: Response) => {
