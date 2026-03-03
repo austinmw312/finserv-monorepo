@@ -19,19 +19,34 @@ Triage a GitHub issue quickly: read the issue, investigate the relevant code, cr
 
 4. **Create a Linear ticket** using the Linear MCP with:
    - **Title:** Clear, actionable (improve on the GitHub issue title)
-   - **Description:**
+   - **Description** (use the appropriate template):
+
+     For **bugs**:
      ```
      ## Problem
-     [1-2 sentences]
+     [1-2 sentences — what's broken]
 
-     ## Root Cause / Analysis
-     [What you found — be specific about file paths and line numbers]
+     ## Root Cause
+     [What you found — specific file paths, line numbers, why it's happening]
 
-     ## Affected Code
-     - `path/to/file.ts` — [brief description of what needs to change]
+     ## Suggested Fix
+     [Concise — what to change, in what order]
 
-     ## Suggested Approach
-     [Concise — what to do, in what order]
+     ## References
+     - GitHub Issue: #[number] (include `Closes #[number]` note for the implementer)
+     - Estimated Effort: [X] points
+     ```
+
+     For **features / tech-debt / documentation**:
+     ```
+     ## Request
+     [1-2 sentences — what's being asked for]
+
+     ## Where This Lives
+     [Which files/modules are involved, where changes would go]
+
+     ## Scope of Work
+     [What needs to be built or changed — break it into concrete steps]
 
      ## References
      - GitHub Issue: #[number] (include `Closes #[number]` note for the implementer)
