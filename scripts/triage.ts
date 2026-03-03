@@ -241,7 +241,7 @@ async function triageInBatches(
 
 // --- Slack Report ---
 
-function buildSlackReport(results: TriageResult[]): string {
+function buildSlackBlocks(results: TriageResult[]): Record<string, unknown>[] {
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -257,40 +257,80 @@ function buildSlackReport(results: TriageResult[]): string {
   };
 
   const quickWins = results.filter((r) => r.estimated_points <= 2);
-  const medium = results.filter(
-    (r) => r.estimated_points === 3,
-  );
+  const medium = results.filter((r) => r.estimated_points === 3);
   const larger = results.filter((r) => r.estimated_points >= 4);
 
-  const quickWinsList = quickWins
-    .slice(0, 5)
-    .map(
-      (r) =>
-        `  • ${r.linear_ticket_id ?? "???"}: ${r.summary} (${r.estimated_points} pt${r.estimated_points > 1 ? "s" : ""})`,
-    )
+  const categoryLine = [
+    byCategory.bug > 0 ? `🐛 ${byCategory.bug} bug${byCategory.bug > 1 ? "s" : ""}` : "",
+    byCategory.feature > 0 ? `✨ ${byCategory.feature} feature${byCategory.feature > 1 ? "s" : ""}` : "",
+    byCategory["tech-debt"] > 0 ? `🧹 ${byCategory["tech-debt"]} tech debt` : "",
+    byCategory.documentation > 0 ? `📄 ${byCategory.documentation} doc${byCategory.documentation > 1 ? "s" : ""}` : "",
+  ].filter(Boolean).join("  ·  ");
+
+  const effortLine = [
+    `⚡ ${quickWins.length} quick win${quickWins.length !== 1 ? "s" : ""} (1-2 pts)`,
+    `🔧 ${medium.length} medium (3 pts)`,
+    `🏗️ ${larger.length} larger (4-5 pts)`,
+  ].join("  ·  ");
+
+  const ticketLines = results
+    .map((r) => {
+      const ticket = r.linear_ticket_id
+        ? `<${r.linear_ticket_url}|${r.linear_ticket_id}>`
+        : "???";
+      const pts = `${r.estimated_points} pt${r.estimated_points > 1 ? "s" : ""}`;
+      return `• ${ticket}: ${r.summary} _(${r.priority}, ${pts})_`;
+    })
     .join("\n");
 
   return [
-    `📊 *Triage Report — ${date}*`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `${results.length} issues triaged`,
-    ``,
-    `*By type:*    ${byCategory.bug} bugs · ${byCategory.feature} features · ${byCategory["tech-debt"]} tech debt · ${byCategory.documentation} docs`,
-    `*By effort:*  ${quickWins.length} quick wins (1-2 pts) · ${medium.length} medium (3 pts) · ${larger.length} larger (4-5 pts)`,
-    ``,
-    quickWins.length > 0
-      ? `⚡ *Quick wins ready for Devin:*\n${quickWinsList}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    {
+      type: "header",
+      text: { type: "plain_text", text: `📊 Triage Report — ${date}` },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: [
+          `*${results.length} issue${results.length !== 1 ? "s" : ""} triaged*`,
+          "",
+          categoryLine,
+          effortLine,
+        ].join("\n"),
+      },
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: results.length <= 10
+          ? `*Tickets created:*\n${ticketLines}`
+          : `*${results.length} tickets created* — view them in <https://linear.app|Linear>`,
+      },
+    },
+  ];
 }
 
-async function postToSlack(text: string): Promise<void> {
+function slackBlocksToText(results: TriageResult[]): string {
+  const date = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return `📊 Triage Report — ${date}: ${results.length} issues triaged`;
+}
+
+async function postToSlack(results: TriageResult[]): Promise<void> {
   const res = await fetch(SLACK_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({
+      text: slackBlocksToText(results),
+      blocks: buildSlackBlocks(results),
+    }),
   });
 
   if (!res.ok) {
@@ -362,9 +402,8 @@ async function main() {
   }
 
   if (triageResults.length > 0) {
-    const report = buildSlackReport(triageResults);
-    console.log("\n" + report + "\n");
-    await postToSlack(report);
+    console.log("\n" + slackBlocksToText(triageResults) + "\n");
+    await postToSlack(triageResults);
   }
 }
 
