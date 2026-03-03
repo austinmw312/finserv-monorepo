@@ -20,7 +20,11 @@ accountsRouter.get("/", (req: Request, res: Response) => {
 });
 
 accountsRouter.get("/:id", (req: Request, res: Response) => {
-  const account = accountStore.getById(req.params.id!) as Account;
+  const account = accountStore.getById(req.params.id!);
+  if (!account) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
 
   res.json({
     data: {
