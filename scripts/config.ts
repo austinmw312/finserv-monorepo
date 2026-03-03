@@ -23,4 +23,4 @@ export const DEVIN_API_BASE = `https://api.devin.ai/v3/organizations/${DEVIN_ORG
 
 export const POLL_INTERVAL_MS = 30_000;
 export const MAX_POLL_DURATION_MS = 30 * 60_000; // 30 minutes per session
-export const CONCURRENCY_LIMIT = 5;
+export const CONCURRENCY_LIMIT = 3;
