@@ -33,7 +33,6 @@ const TRIAGE_OUTPUT_SCHEMA = {
     },
     estimated_points: { type: "integer", minimum: 1, maximum: 5 },
     priority: { type: "string", enum: ["urgent", "high", "medium", "low"] },
-    affected_services: { type: "array", items: { type: "string" } },
     summary: { type: "string" },
   },
   required: [
@@ -54,7 +53,6 @@ interface TriageResult {
   category: "bug" | "feature" | "tech-debt" | "documentation";
   estimated_points: number;
   priority: "urgent" | "high" | "medium" | "low";
-  affected_services?: string[];
   summary: string;
 }
 
@@ -251,8 +249,6 @@ function buildSlackReport(results: TriageResult[]): string {
     day: "numeric",
   });
 
-  const services = new Set(results.flatMap((r) => r.affected_services ?? []));
-
   const byCategory = {
     bug: results.filter((r) => r.category === "bug").length,
     feature: results.filter((r) => r.category === "feature").length,
@@ -277,7 +273,7 @@ function buildSlackReport(results: TriageResult[]): string {
   return [
     `📊 *Triage Report — ${date}*`,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `${results.length} issues triaged across ${services.size || "multiple"} services`,
+    `${results.length} issues triaged`,
     ``,
     `*By type:*    ${byCategory.bug} bugs · ${byCategory.feature} features · ${byCategory["tech-debt"]} tech debt · ${byCategory.documentation} docs`,
     `*By effort:*  ${quickWins.length} quick wins (1-2 pts) · ${medium.length} medium (3 pts) · ${larger.length} larger (4-5 pts)`,
