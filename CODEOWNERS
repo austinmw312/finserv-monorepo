@@ -1,0 +1,23 @@
+# FinServ Monorepo Code Owners
+# These owners will be automatically requested for review on PRs.
+
+# Platform / Infrastructure
+/apps/api-gateway/                @sarah-chen @david-kumar
+/packages/auth/                   @sarah-chen
+/packages/logger/                 @david-kumar
+/packages/common/                 @sarah-chen @david-kumar
+
+# Trading
+/apps/trading-service/            @mike-ross @emily-zhang
+/apps/trading-service/src/utils/  @emily-zhang
+
+# Accounts & KYC
+/apps/account-service/            @priya-patel @james-wilson
+/apps/account-service/src/routes/kyc.ts  @james-wilson
+
+# Notifications
+/apps/notification-service/       @alex-rivera
+
+# Shared Config
+/packages/typescript-config/      @sarah-chen
+/packages/eslint-config/          @sarah-chen

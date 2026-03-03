@@ -1,159 +1,96 @@
-# Turborepo starter
+# FinServ Monorepo
 
-This Turborepo starter is maintained by the Turborepo core team.
+Internal monorepo for FinServ's core platform services.
 
-## Using this example
+## Architecture
 
-Run the following command:
+```
+apps/
+  api-gateway/          → Public API gateway (port 3000)
+  account-service/      → Account management & KYC (port 3001)
+  trading-service/      → Trade execution & portfolio (port 3002)
+  notification-service/ → Email, SMS, push notifications (port 3003)
 
-```sh
-npx create-turbo@latest
+packages/
+  @finserv/common/      → Shared types, errors, utilities
+  @finserv/auth/        → JWT auth & RBAC middleware
+  @finserv/logger/      → Structured logging
 ```
 
-## What's inside?
+## Getting Started
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+pnpm install
+pnpm dev
 ```
 
-Without global `turbo`, use your package manager:
+## API Endpoints
 
-```sh
-cd my-turborepo
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+All requests go through the API gateway at `http://localhost:3000`.
+
+### Accounts (v1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET    | `/api/v1/accounts` | List all accounts |
+| GET    | `/api/v1/accounts/:id` | Get account by ID |
+| POST   | `/api/v1/accounts` | Create new account |
+| PUT    | `/api/v1/accounts/:id` | Update account |
+| DELETE | `/api/v1/accounts/:id` | Close account |
+| POST   | `/api/v1/accounts/:id/deposit` | Deposit funds |
+| POST   | `/api/v1/accounts/:id/withdraw` | Withdraw funds |
+
+### Trading (v1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET    | `/api/v1/trades` | List trades (supports `accountId` filter) |
+| GET    | `/api/v1/trades/:id` | Get trade by ID |
+| POST   | `/api/v1/trades` | Execute new trade |
+| POST   | `/api/v1/trades/:id/cancel` | Cancel pending trade |
+| GET    | `/api/v1/portfolio/:accountId` | Get portfolio positions |
+| POST   | `/api/v1/transfers` | Transfer between accounts |
+
+### Notifications (v1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET    | `/api/v1/notifications` | List notifications |
+| POST   | `/api/v1/notifications` | Send notification |
+| POST   | `/api/v1/notifications/bulk` | Send bulk notifications |
+
+### KYC (v1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST   | `/api/v1/kyc/submit` | Submit KYC documents |
+| POST   | `/api/v1/kyc/review` | Review KYC submission (admin) |
+| GET    | `/api/v1/kyc/status/:accountId` | Check KYC status |
+
+## Running Tests
+
+```bash
+pnpm test             # Run all tests
+pnpm test:unit        # Unit tests only
+pnpm test:integration # Integration tests
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## Environment Variables
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Gateway port |
+| `JWT_SECRET` | `finserv-dev-secret` | JWT signing secret |
+| `LOG_LEVEL` | `info` | Minimum log level |
+| `EMAIL_API_URL` | `https://api.email-provider.internal` | Email service URL |
+| `SMS_API_URL` | `https://api.sms-provider.internal` | SMS service URL |
 
-```sh
-turbo build --filter=docs
-```
+## Team
 
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- **Sarah Chen** — Platform lead (gateway, auth, infra)
+- **David Kumar** — Platform (logging, observability)
+- **Mike Ross** — Trading engine
+- **Emily Zhang** — Trading utilities & risk
+- **Priya Patel** — Accounts
+- **James Wilson** — KYC & compliance
+- **Alex Rivera** — Notifications
