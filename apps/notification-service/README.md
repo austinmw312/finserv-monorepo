@@ -14,6 +14,16 @@ Runs on port `3003` by default. All endpoints are also accessible through the AP
 
 The API gateway (`/api/:service/*`) strips the `/api/notifications` prefix and forwards the remainder to `http://localhost:3003`.
 
+## Authentication
+
+When calling through the API gateway, all requests require a valid JWT Bearer token in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+Requests without a valid token will receive a `401 Unauthorized` response. Direct requests to the service (port `3003`) bypass authentication.
+
 ## Endpoints
 
 ### List Notifications
