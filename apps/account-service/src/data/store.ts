@@ -72,6 +72,17 @@ class AccountStore {
     return this.accounts.get(id);
   }
 
+  getByIds(ids: string[]): Account[] {
+    const results: Account[] = [];
+    for (const id of ids) {
+      const account = this.accounts.get(id);
+      if (account) {
+        results.push(account);
+      }
+    }
+    return results;
+  }
+
   getByEmail(email: string): Account | undefined {
     return Array.from(this.accounts.values()).find((a) => a.email === email);
   }

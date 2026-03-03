@@ -19,6 +19,43 @@ accountsRouter.get("/", (req: Request, res: Response) => {
   res.json({ data: summary });
 });
 
+const BULK_LOOKUP_MAX_IDS = 50;
+
+accountsRouter.post("/bulk-lookup", (req: Request, res: Response) => {
+  const { ids } = req.body;
+
+  if (!Array.isArray(ids)) {
+    res.status(400).json({ error: "ids must be an array" });
+    return;
+  }
+
+  if (ids.length === 0) {
+    res.json({ data: [] });
+    return;
+  }
+
+  if (ids.length > BULK_LOOKUP_MAX_IDS) {
+    res
+      .status(400)
+      .json({ error: `ids array must not exceed ${BULK_LOOKUP_MAX_IDS} items` });
+    return;
+  }
+
+  const accounts = accountStore.getByIds(ids);
+  const data = accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    balance: account.balance,
+    currency: account.currency,
+    status: account.status,
+    kycStatus: account.kycStatus,
+    createdAt: account.createdAt,
+  }));
+
+  res.json({ data });
+});
+
 accountsRouter.get("/:id", (req: Request, res: Response) => {
   const account = accountStore.getById(req.params.id!);
   if (!account) {
