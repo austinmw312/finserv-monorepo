@@ -2,46 +2,27 @@ import { GITHUB_REPO, GITHUB_TOKEN, CONCURRENCY_LIMIT } from "./config";
 import type { GitHubIssue, DevinSession, TriageResult } from "./types";
 import { fetchUntriagedIssues, addTriagedLabel } from "./github";
 import { createTriageSession, pollSession } from "./devin";
-import { postToSlack, slackBlocksToText } from "./slack";
+import { postSessionUpdate, postSessionFailure, postSummary, slackBlocksToText } from "./slack";
 
-async function triageInBatches(
-  issues: GitHubIssue[],
-): Promise<Map<number, { session: DevinSession; issue: GitHubIssue }>> {
-  const results = new Map<
-    number,
-    { session: DevinSession; issue: GitHubIssue }
-  >();
+async function processSession(
+  session: DevinSession,
+  issue: GitHubIssue,
+  triageResults: TriageResult[],
+  failures: { issue: GitHubIssue; reason: string }[],
+): Promise<void> {
+  const final = await pollSession(session.session_id);
 
-  for (let i = 0; i < issues.length; i += CONCURRENCY_LIMIT) {
-    const batch = issues.slice(i, i + CONCURRENCY_LIMIT);
-    console.log(
-      `\nStarting batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}: issues ${batch.map((b) => `#${b.number}`).join(", ")}`,
-    );
-
-    const sessions = await Promise.all(
-      batch.map(async (issue) => {
-        const session = await createTriageSession(issue);
-        console.log(
-          `  Created session for #${issue.number}: ${session.url}`,
-        );
-        return { session, issue };
-      }),
-    );
-
-    console.log(`Polling ${sessions.length} sessions...`);
-    const completed = await Promise.all(
-      sessions.map(async ({ session, issue }) => {
-        const final = await pollSession(session.session_id);
-        return { session: final, issue };
-      }),
-    );
-
-    for (const result of completed) {
-      results.set(result.issue.number, result);
-    }
+  if (final.structured_output) {
+    triageResults.push(final.structured_output);
+    await addTriagedLabel(issue.number);
+    await postSessionUpdate(final.structured_output, issue.html_url);
+    console.log(`  ✅ #${issue.number} triaged`);
+  } else {
+    const reason = `${final.status}/${final.status_detail ?? "unknown"}`;
+    failures.push({ issue, reason });
+    await postSessionFailure(issue.number, issue.html_url, reason);
+    console.log(`  ❌ #${issue.number} failed: ${reason}`);
   }
-
-  return results;
 }
 
 async function main() {
@@ -74,38 +55,38 @@ async function main() {
 
   console.log(`Found ${issues.length} issue(s) to triage`);
 
-  console.log("\n🚀 Creating Devin triage sessions...");
-  const results = await triageInBatches(issues);
-
   const triageResults: TriageResult[] = [];
   const failures: { issue: GitHubIssue; reason: string }[] = [];
 
-  for (const [issueNum, { session, issue }] of Array.from(results.entries())) {
-    if (session.structured_output) {
-      triageResults.push(session.structured_output);
-      await addTriagedLabel(issue.number);
-    } else {
-      failures.push({
-        issue,
-        reason: `${session.status}/${session.status_detail ?? "unknown"}`,
-      });
-    }
+  for (let i = 0; i < issues.length; i += CONCURRENCY_LIMIT) {
+    const batch = issues.slice(i, i + CONCURRENCY_LIMIT);
+    console.log(
+      `\n🚀 Batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}: issues ${batch.map((b) => `#${b.number}`).join(", ")}`,
+    );
+
+    const sessions = await Promise.all(
+      batch.map(async (issue) => {
+        const session = await createTriageSession(issue);
+        console.log(`  Created session for #${issue.number}: ${session.url}`);
+        return { session, issue };
+      }),
+    );
+
+    console.log(`Polling ${sessions.length} sessions...`);
+    await Promise.all(
+      sessions.map(({ session, issue }) =>
+        processSession(session, issue, triageResults, failures),
+      ),
+    );
   }
 
   console.log(
     `\n📊 Results: ${triageResults.length} succeeded, ${failures.length} failed`,
   );
 
-  if (failures.length > 0) {
-    console.log("\nFailed sessions:");
-    for (const f of failures) {
-      console.log(`  #${f.issue.number} (${f.issue.title}): ${f.reason}`);
-    }
-  }
-
   if (triageResults.length > 0) {
     console.log("\n" + slackBlocksToText(triageResults) + "\n");
-    await postToSlack(triageResults);
+    await postSummary(triageResults);
   }
 }
 

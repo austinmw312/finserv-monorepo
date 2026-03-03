@@ -1,6 +1,68 @@
 import { SLACK_WEBHOOK_URL } from "./config";
 import type { TriageResult } from "./types";
 
+async function sendSlackPayload(payload: Record<string, unknown>): Promise<void> {
+  const res = await fetch(SLACK_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    console.error(`Slack webhook error: ${res.status} ${await res.text()}`);
+  }
+}
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  bug: "🐛",
+  feature: "✨",
+  "tech-debt": "🧹",
+  documentation: "📄",
+};
+
+export async function postSessionUpdate(
+  result: TriageResult,
+  issueUrl: string,
+): Promise<void> {
+  const emoji = CATEGORY_EMOJI[result.category] ?? "📋";
+  const ticket = result.linear_ticket_id
+    ? `<${result.linear_ticket_url}|${result.linear_ticket_id}>`
+    : "???";
+  const pts = `${result.estimated_points} pt${result.estimated_points > 1 ? "s" : ""}`;
+
+  await sendSlackPayload({
+    text: `${emoji} Triaged #${result.github_issue_number}: ${result.summary}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `${emoji} *<${issueUrl}|#${result.github_issue_number}>* triaged → ${ticket}\n${result.summary} _(${result.priority}, ${pts})_`,
+        },
+      },
+    ],
+  });
+}
+
+export async function postSessionFailure(
+  issueNumber: number,
+  issueUrl: string,
+  reason: string,
+): Promise<void> {
+  await sendSlackPayload({
+    text: `❌ Failed to triage #${issueNumber}: ${reason}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `❌ *<${issueUrl}|#${issueNumber}>* triage failed: ${reason}`,
+        },
+      },
+    ],
+  });
+}
+
 function buildSlackBlocks(results: TriageResult[]): Record<string, unknown>[] {
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -83,19 +145,10 @@ export function slackBlocksToText(results: TriageResult[]): string {
   return `📊 Triage Report — ${date}: ${results.length} issues triaged`;
 }
 
-export async function postToSlack(results: TriageResult[]): Promise<void> {
-  const res = await fetch(SLACK_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: slackBlocksToText(results),
-      blocks: buildSlackBlocks(results),
-    }),
+export async function postSummary(results: TriageResult[]): Promise<void> {
+  await sendSlackPayload({
+    text: slackBlocksToText(results),
+    blocks: buildSlackBlocks(results),
   });
-
-  if (!res.ok) {
-    console.error(`Slack webhook error: ${res.status} ${await res.text()}`);
-  } else {
-    console.log("✅ Triage report posted to Slack");
-  }
+  console.log("✅ Triage summary posted to Slack");
 }
