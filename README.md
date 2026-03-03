@@ -1,6 +1,8 @@
 # FinServ Monorepo
 
-Internal monorepo for FinServ's core platform services.
+A mock financial services monorepo with intentional bugs, tech debt, and feature gaps — used to demonstrate automated issue triage with [Devin](https://devin.ai).
+
+GitHub issues in this repo represent realistic engineering work (broken auth, missing validation, stale docs, etc). The automation triages them into scoped, estimated Linear tickets that a team can review and assign.
 
 ## Architecture
 
@@ -15,14 +17,67 @@ packages/
   @finserv/common/      → Shared types, errors, utilities
   @finserv/auth/        → JWT auth & RBAC middleware
   @finserv/logger/      → Structured logging
+
+scripts/
+  triage.ts             → Orchestration entrypoint
+  config.ts             → Environment variables & constants
+  types.ts              → Shared interfaces & structured output schema
+  github.ts             → GitHub API (fetch issues, add labels)
+  devin.ts              → Devin API (create sessions, poll for completion)
+  slack.ts              → Slack reporting (Block Kit message)
+  utils.ts              → Helpers
 ```
 
-## Getting Started
+## Triage Automation
+
+The `scripts/` directory contains a TypeScript orchestration script that:
+
+1. Fetches open GitHub issues that haven't been triaged yet
+2. Creates a Devin session per issue, each running the triage playbook
+3. Polls sessions until completion and collects structured output
+4. Adds a `triaged` label to processed GitHub issues (idempotency)
+5. Posts an aggregated report to Slack
+
+### Prerequisites
+
+- Node.js 18+
+- [pnpm](https://pnpm.io)
+- A Devin account with API access and the triage playbook configured
+- A Slack incoming webhook
+- A GitHub personal access token with repo scope
+
+### Setup
 
 ```bash
 pnpm install
-pnpm dev
 ```
+
+Create a `.env` file in the repo root:
+
+```
+DEVIN_API_KEY=your_devin_api_key
+DEVIN_ORG_ID=your_devin_org_id
+GITHUB_TOKEN=your_github_token
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+### Running
+
+Triage all untriaged issues:
+
+```bash
+cd scripts
+pnpm triage
+```
+
+Triage a single issue (useful for testing):
+
+```bash
+cd scripts
+pnpm triage 18
+```
+
+The script runs sessions in batches of 5, polls every 30 seconds, and times out individual sessions after 30 minutes. When all sessions complete, it posts the triage report to Slack.
 
 ## API Endpoints
 
@@ -67,14 +122,6 @@ All requests go through the API gateway at `http://localhost:3000`.
 | POST   | `/api/v1/kyc/review` | Review KYC submission (admin) |
 | GET    | `/api/v1/kyc/status/:accountId` | Check KYC status |
 
-## Running Tests
-
-```bash
-pnpm test             # Run all tests
-pnpm test:unit        # Unit tests only
-pnpm test:integration # Integration tests
-```
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -84,13 +131,3 @@ pnpm test:integration # Integration tests
 | `LOG_LEVEL` | `info` | Minimum log level |
 | `EMAIL_API_URL` | `https://api.email-provider.internal` | Email service URL |
 | `SMS_API_URL` | `https://api.sms-provider.internal` | SMS service URL |
-
-## Team
-
-- **Sarah Chen** — Platform lead (gateway, auth, infra)
-- **David Kumar** — Platform (logging, observability)
-- **Mike Ross** — Trading engine
-- **Emily Zhang** — Trading utilities & risk
-- **Priya Patel** — Accounts
-- **James Wilson** — KYC & compliance
-- **Alex Rivera** — Notifications
