@@ -22,12 +22,6 @@ pnpm run lint
 pnpm run type-check
 ```
 
-Code coverage threshold is 80%. Run coverage report with:
-
-```bash
-pnpm run test:coverage
-```
-
 ## PR Process
 
 1. Create a branch from `main`
