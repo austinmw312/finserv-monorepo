@@ -1,0 +1,256 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: Email, SMS, and push notification delivery service for the FinServ platform.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3003
+    description: Direct service access
+  - url: http://localhost:3000/api/notifications
+    description: Via API gateway
+
+paths:
+  /notifications:
+    get:
+      summary: List notifications
+      description: Returns all notifications sorted by createdAt descending. Supports optional query filters.
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Filter by user ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Filter by notification status
+          schema:
+            $ref: "#/components/schemas/NotificationStatus"
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+                  total:
+                    type: integer
+                required:
+                  - data
+                  - total
+
+    post:
+      summary: Create notification
+      description: Creates and dispatches a single notification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Notification"
+                required:
+                  - data
+        "400":
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /notifications/bulk:
+    post:
+      summary: Bulk create notifications
+      description: Creates and dispatches multiple notifications in a single request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifications:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CreateNotificationRequest"
+                  minItems: 1
+              required:
+                - notifications
+      responses:
+        "201":
+          description: Notifications created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+                  total:
+                    type: integer
+                required:
+                  - data
+                  - total
+        "400":
+          description: Missing or empty notifications array
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /notifications/{id}:
+    get:
+      summary: Get notification by ID
+      description: Returns a single notification by its ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Notification ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notification found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Notification"
+                required:
+                  - data
+        "404":
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    NotificationType:
+      type: string
+      enum:
+        - trade_executed
+        - trade_failed
+        - kyc_approved
+        - kyc_rejected
+        - balance_low
+        - security_alert
+
+    NotificationChannel:
+      type: string
+      enum:
+        - email
+        - sms
+        - push
+
+    NotificationStatus:
+      type: string
+      enum:
+        - queued
+        - sent
+        - failed
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ntf-001
+        userId:
+          type: string
+          example: usr-001
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        channel:
+          $ref: "#/components/schemas/NotificationChannel"
+        subject:
+          type: string
+          example: "Trade Executed: AAPL"
+        body:
+          type: string
+          example: "Your buy order for 100 shares of AAPL has been executed."
+        status:
+          $ref: "#/components/schemas/NotificationStatus"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Arbitrary key-value pairs used for template variable interpolation
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required:
+        - id
+        - userId
+        - type
+        - channel
+        - subject
+        - body
+        - status
+        - createdAt
+
+    CreateNotificationRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Target user ID
+          example: usr-001
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        channel:
+          $ref: "#/components/schemas/NotificationChannel"
+        subject:
+          type: string
+          description: Notification subject line
+          example: "Trade Executed: AAPL"
+        body:
+          type: string
+          description: Notification body text
+          example: "Your buy order for 100 shares of AAPL has been executed."
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Arbitrary key-value pairs for template variable interpolation
+      required:
+        - userId
+        - type
+        - channel
+        - subject
+        - body
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
