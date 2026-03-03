@@ -10,29 +10,41 @@ import type { GitHubIssue, DevinSession } from "./types";
 import { TRIAGE_OUTPUT_SCHEMA } from "./types";
 import { sleep } from "./utils";
 
+const MAX_RETRIES = 5;
+const RETRY_BASE_MS = 60_000;
+
 export async function createTriageSession(
   issue: GitHubIssue,
 ): Promise<DevinSession> {
-  const res = await fetch(`${DEVIN_API_BASE}/sessions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${DEVIN_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      prompt: `Triage this GitHub issue: ${issue.html_url}\n\nRepository: ${GITHUB_REPO}`,
-      playbook_id: TRIAGE_PLAYBOOK_ID,
-      structured_output_schema: TRIAGE_OUTPUT_SCHEMA,
-    }),
-  });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(`${DEVIN_API_BASE}/sessions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${DEVIN_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt: `Triage this GitHub issue: ${issue.html_url}\n\nRepository: ${GITHUB_REPO}`,
+        playbook_id: TRIAGE_PLAYBOOK_ID,
+        structured_output_schema: TRIAGE_OUTPUT_SCHEMA,
+      }),
+    });
 
-  if (!res.ok) {
+    if (res.ok) return res.json();
+
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      const waitMs = RETRY_BASE_MS * (attempt + 1);
+      console.warn(`  Rate limited creating session for #${issue.number}, retrying in ${waitMs / 1000}s...`);
+      await sleep(waitMs);
+      continue;
+    }
+
     throw new Error(
       `Devin API error creating session for #${issue.number}: ${res.status} ${await res.text()}`,
     );
   }
 
-  return res.json();
+  throw new Error(`Exhausted retries creating session for #${issue.number}`);
 }
 
 export async function getSession(sessionId: string): Promise<DevinSession> {
