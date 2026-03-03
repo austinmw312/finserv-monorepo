@@ -2,7 +2,17 @@
 
 Email, SMS, and push notification delivery service for the FinServ platform.
 
-Runs on port `3003` by default. All endpoints are proxied through the API gateway at `http://localhost:3000/api/notifications/`.
+Runs on port `3003` by default. All endpoints are also accessible through the API gateway at `http://localhost:3000`.
+
+### Routing
+
+| Direct (service)                        | Via API Gateway                                          |
+|-----------------------------------------|----------------------------------------------------------|
+| `http://localhost:3003/notifications`   | `http://localhost:3000/api/notifications/notifications`  |
+| `http://localhost:3003/notifications/bulk` | `http://localhost:3000/api/notifications/notifications/bulk` |
+| `http://localhost:3003/notifications/:id`  | `http://localhost:3000/api/notifications/notifications/:id`  |
+
+The API gateway (`/api/:service/*`) strips the `/api/notifications` prefix and forwards the remainder to `http://localhost:3003`.
 
 ## Endpoints
 
@@ -47,10 +57,14 @@ Returns all notifications, sorted by `createdAt` descending. Supports optional q
 
 ```bash
 # List all notifications for a user
-curl http://localhost:3000/api/notifications?userId=usr-001
+# Direct
+curl http://localhost:3003/notifications?userId=usr-001
+
+# Via API gateway
+curl http://localhost:3000/api/notifications/notifications?userId=usr-001
 
 # List queued notifications
-curl http://localhost:3000/api/notifications?status=queued
+curl http://localhost:3003/notifications?status=queued
 ```
 
 ---
@@ -101,7 +115,7 @@ Creates and dispatches a single notification.
 **Example**
 
 ```bash
-curl -X POST http://localhost:3000/api/notifications \
+curl -X POST http://localhost:3003/notifications \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "usr-001",
@@ -168,7 +182,7 @@ Creates and dispatches multiple notifications in a single request.
 **Example**
 
 ```bash
-curl -X POST http://localhost:3000/api/notifications/bulk \
+curl -X POST http://localhost:3003/notifications/bulk \
   -H "Content-Type: application/json" \
   -d '{
     "notifications": [
@@ -229,7 +243,7 @@ Returns a single notification by its ID.
 **Example**
 
 ```bash
-curl http://localhost:3000/api/notifications/ntf-001
+curl http://localhost:3003/notifications/ntf-001
 ```
 
 ---

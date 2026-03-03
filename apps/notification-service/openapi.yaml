@@ -8,7 +8,7 @@ servers:
   - url: http://localhost:3003
     description: Direct service access
   - url: http://localhost:3000/api/notifications
-    description: Via API gateway
+    description: Via API gateway (paths are appended to this base URL)
 
 paths:
   /notifications:
