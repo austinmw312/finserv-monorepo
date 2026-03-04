@@ -61,6 +61,16 @@ describe("POST /accounts/bulk-lookup", () => {
     expect(res.body).toEqual({ error: "ids array must not exceed 50 items" });
   });
 
+  it("deduplicates IDs in the request", async () => {
+    const res = await request(app)
+      .post("/accounts/bulk-lookup")
+      .send({ ids: ["acc-001", "acc-001", "acc-002", "acc-002"] });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.data[0]).toHaveProperty("id", "acc-001");
+    expect(res.body.data[1]).toHaveProperty("id", "acc-002");
+  });
+
   it("returns the same response shape as GET /:id", async () => {
     const singleRes = await request(app).get("/accounts/acc-001");
     const bulkRes = await request(app)
