@@ -7,6 +7,21 @@ const logger = new Logger("account-service:accounts");
 
 export const accountsRouter = Router();
 
+const BULK_LOOKUP_MAX_IDS = 50;
+
+function formatAccountDetail(account: Account) {
+  return {
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    balance: account.balance,
+    currency: account.currency,
+    status: account.status,
+    kycStatus: account.kycStatus,
+    createdAt: account.createdAt,
+  };
+}
+
 accountsRouter.get("/", (req: Request, res: Response) => {
   const accounts = accountStore.getAll();
   const summary = accounts.map((a) => ({
@@ -19,6 +34,26 @@ accountsRouter.get("/", (req: Request, res: Response) => {
   res.json({ data: summary });
 });
 
+accountsRouter.post("/bulk-lookup", (req: Request, res: Response) => {
+  const { ids } = req.body;
+
+  if (!Array.isArray(ids)) {
+    res.status(400).json({ error: "ids must be an array" });
+    return;
+  }
+
+  if (ids.length > BULK_LOOKUP_MAX_IDS) {
+    res.status(400).json({ error: `ids array must not exceed ${BULK_LOOKUP_MAX_IDS} items` });
+    return;
+  }
+
+  const stringIds = ids.filter((id): id is string => typeof id === "string");
+  const uniqueIds = [...new Set(stringIds)];
+  const accounts = accountStore.getByIds(uniqueIds);
+
+  res.json({ data: accounts.map(formatAccountDetail) });
+});
+
 accountsRouter.get("/:id", (req: Request, res: Response) => {
   const account = accountStore.getById(req.params.id!);
   if (!account) {
@@ -26,18 +61,7 @@ accountsRouter.get("/:id", (req: Request, res: Response) => {
     return;
   }
 
-  res.json({
-    data: {
-      id: account.id,
-      name: account.name,
-      email: account.email,
-      balance: account.balance,
-      currency: account.currency,
-      status: account.status,
-      kycStatus: account.kycStatus,
-      createdAt: account.createdAt,
-    },
-  });
+  res.json({ data: formatAccountDetail(account) });
 });
 
 accountsRouter.post("/", (req: Request, res: Response) => {
